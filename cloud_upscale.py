@@ -132,7 +132,7 @@ def super_render(drive_id: str, use_ai: bool = True, phone_ratio: bool = True, k
 
 @app.local_entrypoint()
 def main():
-    display_id = "https://www.dropbox.com/scl/fi/vsa7y4qjj5tsr1dlgu6zl/belfast-luminousart_1080p.mp4?rlkey=3arhhckihmmtq1gaimjbn6k54&st=xarssrvw&dl=1"
+    display_id = ""
     
     #Phone ratio: True = 1440x3200, False = 1440x2560
     #Keep aspect: True = giữ nguyên tỉ lệ, False = stretch/crop
