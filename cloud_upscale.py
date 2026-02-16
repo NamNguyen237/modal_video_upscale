@@ -17,7 +17,7 @@ image = (
     )
 )
 
-volume = modal.Volume.from_name("video_storage")
+volume = modal.Volume.from_name("video_storage", create_if_missing=True)
 app = modal.App("ultimate-renderer-final-v6", image=image)
 
 LOCAL_DOWNLOAD_PATH = "D:/Rendered_Videos"
@@ -44,8 +44,21 @@ def super_render(drive_id: str, use_ai: bool = True, phone_ratio: bool = True, k
         os.makedirs(d, exist_ok=True)
 
     def fix_url(url):
-        if "pixeldrain.com/u/" in url: return url.replace("/u/", "/api/file/")
-        return url
+        # Xử lý Pixeldrain
+        if "pixeldrain.com/u/" in url:
+            return url.replace("/u/", "/api/file/")
+    
+        # Xử lý OneDrive Business / SharePoint
+        if "sharepoint.com" in url or "onedrive.live.com" in url:
+            if "download=1" not in url:
+                # Nếu đã có tham số ? thì thêm &download=1, nếu chưa thì thêm ?download=1
+                return url + ("&download=1" if "?" in url else "?download=1")
+            
+        # Xử lý Dropbox (Nếu bạn có dùng)
+        if "dropbox.com" in url and "dl=0" in url:
+            return url.replace("dl=0", "dl=1")
+        
+    return url
 
     # --- TẢI & GHÉP FILE ---
     if not os.path.exists(merged_path):
@@ -143,12 +156,12 @@ def main():
     remote_filename = super_render.remote(
         drive_id=display_id,
         use_ai=False, 
-        phone_ratio=False, 
-        keep_aspect=False, 
+        phone_ratio=True, 
+        keep_aspect=True, 
         target_4k=False,
-        native_x2=True, 
-        force_60fps=False, # Công tắc 60 FPS bạn cần
-        force_rebuild=False
+        native_x2=False, 
+        force_60fps=True, # Công tắc 60 FPS bạn cần
+        force_rebuild=True
     )
 
     if not os.path.exists(LOCAL_DOWNLOAD_PATH): os.makedirs(LOCAL_DOWNLOAD_PATH)
