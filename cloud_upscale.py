@@ -18,49 +18,34 @@ image = (
 )
 
 volume = modal.Volume.from_name("video_storage", create_if_missing=True)
-app = modal.App("ultimate-renderer-final-v6", image=image)
+app = modal.App("ultimate-renderer-final-v7", image=image)
 
 LOCAL_DOWNLOAD_PATH = "D:/Rendered_Videos"
 
-@app.function(gpu="L40S", cpu=16, memory=32768, volumes={"/data": volume}, timeout=21600, retries=0)
+@app.function(gpu="L40S", cpu=16, memory=65536, volumes={"/data": volume}, timeout=21600, retries=0)
 def super_render(drive_id: str, use_ai: bool = True, phone_ratio: bool = True, keep_aspect: bool = False, 
-                 target_4k: bool = False, native_x2: bool = False, force_60fps: bool = True, force_rebuild: bool = False):
+                 target_4k: bool = False, native_x2: bool = False, force_60fps: bool = True, 
+                 zip_password: str = None, force_rebuild: bool = False):
     import torch
+    import zipfile
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    work_dir = "/data/processing"
-    final_dir = "/data/final_outputs"
+    work_dir, final_dir = "/data/processing", "/data/final_outputs"
     merged_path = f"{work_dir}/merged.mp4"
     
-    # --- DỌN DẸP DỮ LIỆU ---
     if force_rebuild:
         print("♻️ Force Rebuild: Đang dọn dẹp thư mục làm việc...")
-        for path in [f"{work_dir}/inputs", f"{work_dir}/ai_out", merged_path]:
-            if os.path.exists(path):
-                if os.path.isdir(path): shutil.rmtree(path)
-                else: os.remove(path)
+        if os.path.exists(work_dir): shutil.rmtree(work_dir)
 
     for d in [work_dir, f"{work_dir}/inputs", f"{work_dir}/ai_out", final_dir]:
         os.makedirs(d, exist_ok=True)
 
     def fix_url(url):
-        # Xử lý Pixeldrain
-        if "pixeldrain.com/u/" in url:
-            return url.replace("/u/", "/api/file/")
-    
-        # Xử lý OneDrive Business / SharePoint
-        if "sharepoint.com" in url or "onedrive.live.com" in url:
-            if "download=1" not in url:
-                # Nếu đã có tham số ? thì thêm &download=1, nếu chưa thì thêm ?download=1
-                return url + ("&download=1" if "?" in url else "?download=1")
-            
-        # Xử lý Dropbox (Nếu bạn có dùng)
-        if "dropbox.com" in url and "dl=0" in url:
-            return url.replace("dl=0", "dl=1")
-        
-    return url
+        if "pixeldrain.com/u/" in url: return url.replace("/u/", "/api/file/")
+        if "dropbox.com" in url and "dl=0" in url: return url.replace("dl=0", "dl=1")
+        return url
 
-    # --- TẢI & GHÉP FILE ---
+    # --- TẢI & GIẢI NÉN (HỖ TRỢ PASS) ---
     if not os.path.exists(merged_path):
         temp_file = f"{work_dir}/temp_download"
         if isinstance(drive_id, list):
@@ -74,46 +59,40 @@ def super_render(drive_id: str, use_ai: bool = True, phone_ratio: bool = True, k
                 gdown.download(f'https://drive.google.com/uc?id={drive_id}', temp_file, quiet=False, fuzzy=True)
             
             if os.path.exists(temp_file):
-                import zipfile
                 if zipfile.is_zipfile(temp_file):
-                    with zipfile.ZipFile(temp_file, 'r') as z: z.extractall(f"{work_dir}/inputs")
+                    print(f"📦 Đang giải nén ZIP {'(có mật khẩu)' if zip_password else ''}...")
+                    with zipfile.ZipFile(temp_file, 'r') as z:
+                        z.extractall(f"{work_dir}/inputs", pwd=zip_password.encode() if zip_password else None)
                     os.remove(temp_file)
-                else: shutil.move(temp_file, merged_path)
+                else: 
+                    shutil.move(temp_file, merged_path)
 
+    # --- GHÉP FILE (HỖ TRỢ MP4 + MKV) ---
     if not os.path.exists(merged_path):
-        files = sorted([f for f in os.listdir(f"{work_dir}/inputs") if f.endswith(".mp4")])
+        files = sorted([f for f in os.listdir(f"{work_dir}/inputs") if f.lower().endswith((".mp4", ".mkv"))])
+        if not files: raise Exception("❌ Không tìm thấy file video nào trong đầu vào!")
+        
         list_path = f"{work_dir}/list.txt"
         with open(list_path, "w") as f:
             for file in files: f.write(f"file '{work_dir}/inputs/{file}'\n")
+        
+        print(f"🧩 Đang ghép {len(files)} file...")
         os.system(f"ffmpeg -y -f concat -safe 0 -i {list_path} -c copy {merged_path}")
 
-    # --- BƯỚC 3: TÍNH TOÁN TỶ LỆ, FPS & BITRATE ---
+    # --- BƯỚC 3: TÍNH TOÁN FILTER ---
     probe_cmd = f"ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 {merged_path}"
     dimensions = subprocess.check_output(probe_cmd, shell=True).decode().strip().split('x')
     orig_w, orig_h = int(dimensions[0]), int(dimensions[1])
 
-    # Thiết lập FPS: Dùng Boolean để quyết định
     fps_filter = ",fps=fps=60" if force_60fps else ""
 
     if native_x2:
         target_w, target_h = orig_w * 2, orig_h * 2
-        bitrate = "45M"
-        vf_scale = f"scale={target_w}:{target_h}:flags=lanczos"
-        label = "NATIVE_X2"
-    elif phone_ratio:
-        target_w = 4800 if target_4k else 3200
-        target_h = 2160 if target_4k else 1440
-        bitrate = "60M" if target_4k else "35M"
-        label = f"{'4K' if target_4k else '2K'}_PHONE"
-        if keep_aspect:
-            vf_scale = f"scale={target_w}:{target_h}:flags=lanczos:force_original_aspect_ratio=decrease,pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2"
-        else:
-            vf_scale = f"scale={target_w}:{target_h}:flags=lanczos"
+        bitrate, vf_scale, label = "45M", f"scale={target_w}:{target_h}:flags=lanczos", "NATIVE_X2"
     else:
-        target_w = 3840 if target_4k else 2560
+        target_w = (4800 if target_4k else 3200) if phone_ratio else (3840 if target_4k else 2560)
         target_h = 2160 if target_4k else 1440
-        bitrate = "60M" if target_4k else "35M"
-        label = f"{'4K' if target_4k else '2K'}_STD"
+        bitrate, label = ("60M" if target_4k else "35M"), ("4K" if target_4k else "2K")
         if keep_aspect:
             vf_scale = f"scale={target_w}:{target_h}:flags=lanczos:force_original_aspect_ratio=decrease,pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2"
         else:
@@ -122,9 +101,9 @@ def super_render(drive_id: str, use_ai: bool = True, phone_ratio: bool = True, k
     filename = f"RENDER_{label}_{timestamp}.mp4"
     final_video = f"{final_dir}/{filename}"
 
-    print(f"🚀 Render: {label} | Force 60FPS: {force_60fps} | Bitrate: {bitrate} | AI: {use_ai}")
+    print(f"🚀 Render: {label} | 60FPS: {force_60fps} | AI: {use_ai}")
 
-    # --- BƯỚC 4: RENDER MƯỢT MÀ ---
+    # --- BƯỚC 4: RENDER ---
     if use_ai:
         if os.path.exists("/tmp/ai_out"): shutil.rmtree("/tmp/ai_out")
         os.makedirs("/tmp/ai_out", exist_ok=True)
@@ -145,13 +124,7 @@ def super_render(drive_id: str, use_ai: bool = True, phone_ratio: bool = True, k
 
 @app.local_entrypoint()
 def main():
-    display_id = ""
-    
-    #Phone ratio: True = 1440x3200, False = 1440x2560
-    #Keep aspect: True = giữ nguyên tỉ lệ, False = stretch/crop
-    #Target 4k: True = 4K, False = 2K
-    #Native x2: True = Upscale nhân đôi gốc (2800x2248), không méo, không đen. (Ưu tiên nhất)
-    #Force rebuild: True = xóa cache, False = giữ nguyên cache
+    display_id = "1aw1Mhrpp9YHqMUnKH3Pd9M4cEkI-VvfI" # ID file hoặc link ZIP
     
     remote_filename = super_render.remote(
         drive_id=display_id,
@@ -160,11 +133,12 @@ def main():
         keep_aspect=True, 
         target_4k=False,
         native_x2=False, 
-        force_60fps=True, # Công tắc 60 FPS bạn cần
+        force_60fps=True,
+        zip_password="", # Đổi mật khẩu ở đây, nếu không có thì để None
         force_rebuild=True
     )
 
     if not os.path.exists(LOCAL_DOWNLOAD_PATH): os.makedirs(LOCAL_DOWNLOAD_PATH)
     print(f"📥 Đang tải: {remote_filename}...")
     subprocess.run(["modal", "volume", "get", "video_storage", f"/final_outputs/{remote_filename}", LOCAL_DOWNLOAD_PATH])
-    print(f"✅ LUNG LINH MƯỢT MÀ! Video tại: {LOCAL_DOWNLOAD_PATH}/{remote_filename}")
+    print(f"✅ HOÀN TẤT! Video tại: {LOCAL_DOWNLOAD_PATH}/{remote_filename}")
