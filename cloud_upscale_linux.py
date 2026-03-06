@@ -135,7 +135,7 @@ def super_render(drive_id: str, use_ai: bool = True, phone_ratio: bool = True, k
 @app.local_entrypoint()
 def main():
     # DÁN NGUYÊN LINK FULL VÀO ĐÂY
-    link_full = "https://drive.google.com/file/d/1DEFHnX_6qNe9fRzhLVlQ9_jHCWH87KiC/view?usp=sharing"
+    link_full = "https://drive.google.com/file/d/1upZs6hpJg5uloO7xq8LAU2451Ve3aozE/view?usp=sharing"
     
     remote_filename = super_render.remote(
         drive_id=link_full, 
