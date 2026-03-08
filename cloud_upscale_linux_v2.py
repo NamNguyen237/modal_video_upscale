@@ -21,7 +21,7 @@ image = (
 volume = modal.Volume.from_name("video_storage", create_if_missing=True)
 app = modal.App("ultimate-renderer-v9-safe-mode", image=image)
 
-LOCAL_DOWNLOAD_PATH = "D:/Rendered_Videos"
+LOCAL_DOWNLOAD_PATH = os.path.expanduser("/mnt/nvme/Rendered_Videos")
 
 @app.function(gpu="L40S", cpu=16, memory=65536, volumes={"/data": volume}, timeout=21600, retries=0)
 def super_render(drive_id: str, use_ai: bool = True, phone_ratio: bool = True, keep_aspect: bool = False, 
@@ -129,7 +129,7 @@ def super_render(drive_id: str, use_ai: bool = True, phone_ratio: bool = True, k
 @app.local_entrypoint()
 def main():
     # DÁN LINK FULL THOẢI MÁI
-    display_id = "https://drive.google.com/file/d/1J5QhuzmvxzsRSxFMlqCnlwhi9klTZD8X/view?usp=sharing"
+    display_id = "https://drive.google.com/file/d/1DEFHnX_6qNe9fRzhLVlQ9_jHCWH87KiC/view?usp=sharing"
     
     remote_filename = super_render.remote(
         drive_id=display_id,
@@ -142,7 +142,7 @@ def main():
         zip_password=None,
         fix_black_pixels=True, # Sửa lỗi chấm đen mkv
         fix_fade=True,         # Sửa lỗi vỡ ảnh khi chuyển cảnh fade (Safe Mode)
-        force_rebuild=True
+        force_rebuild=False
     )
 
     if not os.path.exists(LOCAL_DOWNLOAD_PATH): os.makedirs(LOCAL_DOWNLOAD_PATH)
