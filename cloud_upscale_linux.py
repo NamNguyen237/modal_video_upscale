@@ -112,6 +112,8 @@ def super_render(drive_id: str, use_ai: bool = True, phone_ratio: bool = True, k
     print(f"🚀 Render: {label} | 60FPS: {force_60fps} | Fix Black Pixels: {fix_black_pixels}")
 
     # --- BƯỚC 4: RENDER ---
+    codec = "hevc_nvenc" if target_w > 4096 else "h264_nvenc"
+    
     if use_ai:
         if os.path.exists("/tmp/ai_out"): shutil.rmtree("/tmp/ai_out")
         os.makedirs("/tmp/ai_out", exist_ok=True)
@@ -121,12 +123,12 @@ def super_render(drive_id: str, use_ai: bool = True, phone_ratio: bool = True, k
         
         # Áp dụng mkv_fix vào cả AI nếu cần
         os.system(f"ffmpeg -y -i {work_dir}/ai_out/merged_out.mp4 -i {merged_path} "
-                  f"-map 0:v:0 -map 1:a? -vf '{mkv_fix}{vf_scale}{fps_filter}' -c:a copy -c:v h264_nvenc -preset p4 -b:v {bitrate} {final_video}")
+                  f"-map 0:v:0 -map 1:a? -vf '{mkv_fix}{vf_scale}{fps_filter}' -c:a copy -c:v {codec} -preset p4 -b:v {bitrate} {final_video}")
     else:
         # Áp dụng mkv_fix vào FFmpeg Upscale thường
         os.system(f"ffmpeg -y -hwaccel cuda -i {merged_path} "
                   f"-vf '{mkv_fix}{vf_scale},unsharp=3:3:1.5{fps_filter}' "
-                  f"-c:v h264_nvenc -preset p4 -b:v {bitrate} -pix_fmt yuv420p {final_video}")
+                  f"-c:v {codec} -preset p4 -b:v {bitrate} -pix_fmt yuv420p {final_video}")
 
     if os.path.exists(f"{work_dir}/inputs"): shutil.rmtree(f"{work_dir}/inputs")
     volume.commit()
@@ -135,7 +137,7 @@ def super_render(drive_id: str, use_ai: bool = True, phone_ratio: bool = True, k
 @app.local_entrypoint()
 def main():
     # DÁN NGUYÊN LINK FULL VÀO ĐÂY
-    link_full = "https://drive.google.com/file/d/1upZs6hpJg5uloO7xq8LAU2451Ve3aozE/view?usp=sharing"
+    link_full = "https://drive.google.com/file/d/1f6qFrQEOA4-gCvRL3CU4ihzxxrv2_y3N/view?usp=sharing"
     
     remote_filename = super_render.remote(
         drive_id=link_full, 
@@ -147,7 +149,7 @@ def main():
         force_60fps=True,
         zip_password=None,
         fix_black_pixels=True, # Bật để sửa lỗi pixel đen trên file MKV
-        force_rebuild=False
+        force_rebuild=True
     )
 
     if not os.path.exists(LOCAL_DOWNLOAD_PATH): os.makedirs(LOCAL_DOWNLOAD_PATH)

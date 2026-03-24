@@ -21,7 +21,8 @@ image = (
 volume = modal.Volume.from_name("video_storage", create_if_missing=True)
 app = modal.App("ultimate-renderer-v11-pro-plus", image=image)
 
-LOCAL_DOWNLOAD_PATH = "D:/Rendered_Videos"
+LOCAL_DOWNLOAD_PATH = "./Rendered_Videos"
+#LOCAL_DOWNLOAD_PATH = os.path.expanduser("/mnt/nvme/Rendered_Videos")
 
 @app.function(gpu="L40S", cpu=16, memory=65536, volumes={"/data": volume}, timeout=21600, retries=0)
 def super_render(drive_id: str, 
@@ -139,11 +140,12 @@ def super_render(drive_id: str,
         input_source = f"{work_dir}/ai_out/merged_out.mp4"
 
     # Encode cuối cùng với NVENC (L40S)
+    codec = "hevc_nvenc" if target_w > 4096 else "h264_nvenc"
     cmd_final = (
-        f"ffmpeg -y -hwaccel cuda -hwaccel_output_format cuda -i {input_source} "
+        f"ffmpeg -y -hwaccel cuda -i {input_source} "
         f"-map 0:v:0 -map 0:a:0? " # Xử lý track âm thanh MKV linh hoạt
         f"-vf {final_vf} "
-        f"-c:v h264_nvenc -preset p7 -rc vbr -cq 18 " # Preset p7 cho chất lượng cao nhất
+        f"-c:v {codec} -preset p7 -rc vbr -cq 18 " # Preset p7 cho chất lượng cao nhất
         f"-b:v {bitrate} -maxrate 100M -bufsize 100M "
         f"-spatial-aq 1 -temporal-aq 1 -nonref_p 1 " # AQ giúp giữ chi tiết Live2D khi chuyển động
         f"-pix_fmt yuv420p -c:a aac -b:a 320k "     # Đổi audio sang AAC 320k chuẩn YouTube
@@ -160,7 +162,7 @@ def super_render(drive_id: str,
 @app.local_entrypoint()
 def main():
     # Dán link Drive file MKV của bạn vào đây
-    display_id = "https://drive.google.com/file/d/1R25oUPhT-J9MBe0r81BlaHz_x6cmrT1k/view?usp=sharing"
+    display_id = "https://drive.google.com/file/d/1gVaI7kuXSsm9prvQ7gAFS4uu_qxqLz0r/view?usp=sharing"
     
     remote_filename = super_render.remote(
         drive_id=display_id,

@@ -129,14 +129,14 @@ def super_render(drive_id: str, use_ai: bool = True, phone_ratio: bool = True, k
 @app.local_entrypoint()
 def main():
     # DÁN LINK FULL THOẢI MÁI
-    display_id = "https://drive.google.com/file/d/1J5QhuzmvxzsRSxFMlqCnlwhi9klTZD8X/view?usp=sharing"
+    display_id = "https://drive.google.com/file/d/1R25oUPhT-J9MBe0r81BlaHz_x6cmrT1k/view?usp=sharing"
     
     remote_filename = super_render.remote(
         drive_id=display_id,
         use_ai=False, 
         phone_ratio=True, 
         keep_aspect=True, 
-        target_4k=False,
+        target_4k=True,
         native_x2=False, 
         force_60fps=True,
         zip_password=None,

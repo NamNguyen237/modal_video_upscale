@@ -124,7 +124,7 @@ def super_render(drive_id: str, use_ai: bool = True, phone_ratio: bool = True, k
 
 @app.local_entrypoint()
 def main():
-    display_id = "1upZs6hpJg5uloO7xq8LAU2451Ve3aozE" # ID file hoặc link ZIP
+    display_id = "1J5QhuzmvxzsRSxFMlqCnlwhi9klTZD8X" # ID file hoặc link ZIP
     
     remote_filename = super_render.remote(
         drive_id=display_id,
@@ -135,7 +135,7 @@ def main():
         native_x2=False, 
         force_60fps=True,
         zip_password="", # Đổi mật khẩu ở đây, nếu không có thì để None
-        force_rebuild=False
+        force_rebuild=True
     )
 
     if not os.path.exists(LOCAL_DOWNLOAD_PATH): os.makedirs(LOCAL_DOWNLOAD_PATH)
